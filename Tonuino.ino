@@ -955,6 +955,14 @@ void loop() {
       activeModifier->loop();
     }
 
+    if (Serial.available() > 0) {
+      switch (Serial.read()) {
+        case 'a':
+          adminMenu();
+          break;
+      }
+    }
+
     // Buttons werden nun über JS_Button gehandelt, dadurch kann jede Taste
     // doppelt belegt werden
     readButtons();
