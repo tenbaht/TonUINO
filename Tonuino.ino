@@ -899,7 +899,7 @@ void playFolder() {
   }
   // Spezialmodus Von-Bin: Hörspiel: eine zufällige Datei aus dem Ordner
   if (myFolder->mode == 7) {
-    Serial.println(F("Spezialmodus Von-Bin: Hörspiel -> zufälligen Track wiedergeben"));
+    Serial.println(F("Spezialmodus Von-Bis: Hörspiel -> zufälligen Track wiedergeben"));
     Serial.print(myFolder->special);
     Serial.print(F(" bis "));
     Serial.println(myFolder->special2);
