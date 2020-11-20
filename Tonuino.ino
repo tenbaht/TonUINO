@@ -1539,7 +1539,9 @@ bool readCard(nfcTagObject * nfcTag) {
       (piccType == MFRC522::PICC_TYPE_MIFARE_1K ) ||
       (piccType == MFRC522::PICC_TYPE_MIFARE_4K ) )
   {
-    Serial.println(F("Authenticating Classic using key A..."));
+    Serial.print(F("Authenticating Classic using key: "));
+    //Print key used for authentification
+    dump_byte_array(key.keyByte, 6);
     status = mfrc522.PCD_Authenticate(
                MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
   }
