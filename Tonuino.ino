@@ -1428,161 +1428,126 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
                   bool preview = false, int previewFromFolder = 0, int defaultValue = 0, bool exitWithLongPress = false) {
   uint8_t returnValue = defaultValue;
   if (startMessage != 0)
-          mp3.playMp3FolderTrack(startMessage);
-        Serial.print(F("=== voiceMenu() ("));
-        Serial.print(numberOfOptions);
-        Serial.println(F(" Options)"));
+    mp3.playMp3FolderTrack(startMessage);
+  Serial.print(F("=== voiceMenu() ("));
+  Serial.print(numberOfOptions);
+  Serial.println(F(" Options)"));
 
-        unsigned long AdmTimeOut = 0;
-        unsigned long SollAdmTimeOut = 5*60000;           // Vorgabe der AdmTimeOut Zeit in millisekunden , Die 5 ist dieZeit in Minuten
+  // Vorgabe der AdmTimeOut Zeit in Millisekunden, die 5 ist die Zeit in Minuten:
+  unsigned long SollAdmTimeOut = 5*60000;
+  unsigned long AdmTimeOut = millis();
+
+  Serial.print(F("AdmTimeOut :"));
+  Serial.println(SollAdmTimeOut);
+  do {
+    //Serial.println((millis() - AdmTimeOut));
+    if((long)(millis() - AdmTimeOut) >= SollAdmTimeOut) {
+      Serial.println(F("TimeOut"));
+      mp3.playMp3FolderTrack(802);                  //802- "OK, ich habe den Vorgang abgebrochen.
+      //ignorePauseButton = true;
+      setstandbyTimer();
+      return defaultValue;
+    }
+    if (Serial.available() > 0) {
+      int optionSerial = Serial.parseInt();
+      if (optionSerial != 0 && optionSerial <= numberOfOptions)
+        return optionSerial;
+    }
+    readButtons();
+    mp3.loop();
+    if (pauseButton.pressedFor(LONG_PRESS)) { // Abbruch
+      mp3.playMp3FolderTrack(802);    //802- "OK, ich habe den Vorgang abgebrochen.
+      ignorePauseButton = true;
+      setstandbyTimer();
+      return defaultValue;
+    }
+    if (pauseButton.wasReleased()) {
+      if (returnValue != 0) {
         AdmTimeOut = millis();
-        Serial.print(F("AdmTimeOut :"));
-        Serial.println(SollAdmTimeOut);
-        do 
-          {
-             //Serial.println((millis() - AdmTimeOut));
-             if((millis() - AdmTimeOut) >= SollAdmTimeOut)         
-           {
-            Serial.println(F("TimeOut"));
-            mp3.playMp3FolderTrack(802);                  //802- "OK, ich habe den Vorgang abgebrochen.
-              //ignorePauseButton = true;
-              setstandbyTimer(); 
-              return defaultValue;  
-           }
+        Serial.print(F("=== "));
+        Serial.print(returnValue);
+        Serial.println(F(" ==="));
+        return returnValue;
+      }
+      delay(1000);
+    }
 
-
-          if (Serial.available() > 0) 
-            {
-            int optionSerial = Serial.parseInt();
-            if (optionSerial != 0 && optionSerial <= numberOfOptions)
-              return optionSerial;
-            }
-
-
-        readButtons();   
-mp3.loop();
-     
-        if (pauseButton.pressedFor(LONG_PRESS)) // Abbruch
-        {
-        mp3.playMp3FolderTrack(802);                  //802- "OK, ich habe den Vorgang abgebrochen.
-        ignorePauseButton = true;
-        setstandbyTimer(); 
-        return defaultValue;
-        }
-      if (pauseButton.wasReleased()) 
-        {
-        if (returnValue != 0) 
-          {
-          AdmTimeOut = millis();
-          Serial.print(F("=== "));
-          Serial.print(returnValue);
-          Serial.println(F(" ==="));
-          return returnValue;
-          }
-        delay(1000);
-         }
-
-    if (upButton.pressedFor(LONG_PRESS)) 
-      {
-      AdmTimeOut = millis();  
-      returnValue = min(returnValue + 10, numberOfOptions);             // 10 Schritte hoch
+    if (upButton.pressedFor(LONG_PRESS)) {
+      AdmTimeOut = millis();
+      returnValue = min(returnValue + 10, numberOfOptions);  // 10 Schritte hoch
       Serial.println(returnValue);
-      mp3.pause();                                                                      
+      mp3.pause();
       mp3.playMp3FolderTrack(messageOffset + returnValue);
       waitForTrackToFinish();
 
-       //************preview 10-er Schritt** vorwärts ************** 
-      
-      if (preview) 
-        {
+      //************preview 10-er Schritt** vorwärts **************
+      if (preview) {
         if (previewFromFolder == 0)
           mp3.playFolderTrack(returnValue, 1);
         else
           mp3.playFolderTrack(previewFromFolder, returnValue);
         }
-       
       ignoreUpButton = true;
-    }
-    else if (upButton.wasReleased()) 
-      {
+    } else if (upButton.wasReleased()) {
       AdmTimeOut = millis();
-      if (!ignoreUpButton) 
-        {
+      if (!ignoreUpButton) {
         returnValue = min(returnValue + 1, numberOfOptions);
         Serial.println(returnValue);
-        mp3.pause();                                                            
+        mp3.pause();
         mp3.playMp3FolderTrack(messageOffset + returnValue);
-        if (preview) 
-          {
+        if (preview) {
           waitForTrackToFinish();
-          if (previewFromFolder == 0) 
-            {
+          if (previewFromFolder == 0) {
             mp3.playFolderTrack(returnValue, 1);
-            } 
-            else
-              {
-              mp3.playFolderTrack(previewFromFolder, returnValue);
-              }
-            delay(1000);
+          } else {
+            mp3.playFolderTrack(previewFromFolder, returnValue);
           }
-        } 
-        else 
-        {
-        ignoreUpButton = false;
+          delay(1000);
         }
+      } else {
+        ignoreUpButton = false;
+      }
     }
 
-    if (downButton.pressedFor(LONG_PRESS)) 
-      {
+    if (downButton.pressedFor(LONG_PRESS)) {
       AdmTimeOut = millis();
       returnValue = max(returnValue - 10, 1);             // 10 Schritte zurück
       Serial.println(returnValue);
-      mp3.pause();                                                          
+      mp3.pause();
       mp3.playMp3FolderTrack(messageOffset + returnValue);
       waitForTrackToFinish();
       
       //************preview 10-er Schritt* zurück ***************
-       
-      if (preview) 
-        {
+
+      if (preview) {
         if (previewFromFolder == 0)
           mp3.playFolderTrack(returnValue, 1);
         else
           mp3.playFolderTrack(previewFromFolder, returnValue);
-        }
-       
-        
+      }
       ignoreDownButton = true;
-      }
-      else if (downButton.wasReleased()) 
-        {
-        AdmTimeOut = millis();  
-        if (!ignoreDownButton) 
-          {
-          returnValue = max(returnValue - 1, 1);
-          Serial.println(returnValue);
-          mp3.pause();                                                      
-          mp3.playMp3FolderTrack(messageOffset + returnValue);
-          if (preview) 
-            {
-            waitForTrackToFinish();
-            if (previewFromFolder == 0) 
-              {
-              mp3.playFolderTrack(returnValue, 1);
-              }
-            else 
-            {
-            mp3.playFolderTrack(previewFromFolder, returnValue);
-            }
-          delay(1000);
-            }
-          } 
-          else 
-          {
-          ignoreDownButton = false;
+    } else if (downButton.wasReleased()) {
+      AdmTimeOut = millis();
+      if (!ignoreDownButton) {
+        returnValue = max(returnValue - 1, 1);
+        Serial.println(returnValue);
+        mp3.pause();
+        mp3.playMp3FolderTrack(messageOffset + returnValue);
+        if (preview) {
+          waitForTrackToFinish();
+          if (previewFromFolder == 0) {
+            mp3.playFolderTrack(returnValue, 1);
           }
+          else {
+            mp3.playFolderTrack(previewFromFolder, returnValue);
+          }
+          delay(1000);
+        }
+      } else {
+        ignoreDownButton = false;
       }
-    } while (true);
+    }
+  } while (true);
 }
 
 void resetCard() {
