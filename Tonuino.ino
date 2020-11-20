@@ -64,6 +64,42 @@ struct adminSettings {
   uint8_t adminMenuPin[4];
 };
 
+// internal prototypes
+void setupCard();
+bool setupFolder(folderSettings * theFolder);
+void setstandbyTimer();
+//
+void writeCard(nfcTagObject nfcTag);
+void dump_byte_array(byte * buffer, byte bufferSize);
+void shuffleQueue();
+void writeSettingsToFlash();
+void resetSettings();
+void migrateSettings(int oldVersion);
+void loadSettingsFromFlash();
+void setstandbyTimer();
+void disablestandbyTimer();
+void checkStandbyAtMillis();
+void waitForTrackToFinish();
+void wakeUpMp3(void);
+void wakeUpNFC(void);
+void setup();
+void readButtons();
+void volumeUpButton();
+void volumeDownButton();
+void nextButton();
+void previousButton();
+void playFolder();
+void playShortCut(uint8_t shortCut);
+void loop();
+void adminMenu(bool fromCard);
+bool askCode(uint8_t *code);
+void resetCard();
+void setupCard();
+bool readCard(nfcTagObject * nfcTag);
+void writeCard(nfcTagObject nfcTag);
+void dump_byte_array(byte * buffer, byte bufferSize);
+//
+
 adminSettings mySettings;
 nfcTagObject myCard;
 folderSettings *myFolder;
@@ -274,7 +310,7 @@ class SleepTimer: public Modifier {
 
   public:
     void loop() {
-      if (this->sleepAtMillis != 0 && millis() > this->sleepAtMillis) {
+      if (this->sleepAtMillis != 0 && (long)(millis() - this->sleepAtMillis) >= 0) {
         Serial.println(F("=== SleepTimer::loop() -> SLEEP!"));
         mp3.pause();
         setstandbyTimer();
@@ -312,7 +348,7 @@ class FreezeDance: public Modifier {
 
   public:
     void loop() {
-      if (this->nextStopAtMillis != 0 && millis() > this->nextStopAtMillis) {
+      if (this->nextStopAtMillis != 0 && (int)(millis() - this->nextStopAtMillis) >= 0 ) {
         Serial.println(F("== FreezeDance::loop() -> FREEZE!"));
         if (isPlaying()) {
           mp3.playAdvertisement(301);
@@ -658,6 +694,8 @@ MFRC522::StatusCode status;
 #define buttonFivePin A4
 #endif
 
+#define buttonPower 2
+
 #define LONG_PRESS 1000
 
 Button pauseButton(buttonPause);
@@ -692,21 +730,34 @@ void disablestandbyTimer() {
 }
 
 void checkStandbyAtMillis() {
-  if (sleepAtMillis != 0 && millis() > sleepAtMillis) {
+  if (sleepAtMillis != 0 && (long)(millis() - sleepAtMillis) >= 0) {
     Serial.println(F("=== power off!"));
-    // enter sleep state
-    digitalWrite(shutdownPin, HIGH);
-    delay(500);
-
     // http://discourse.voss.earth/t/intenso-s10000-powerbank-automatische-abschaltung-software-only/805
     // powerdown to 27mA (powerbank switches off after 30-60s)
     mfrc522.PCD_AntennaOff();
     mfrc522.PCD_SoftPowerDown();
     mp3.sleep();
 
+    // enter sleep state
+    delay(500);
+    digitalWrite(shutdownPin, HIGH);
+
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();  // Disable interrupts
-    sleep_mode();
+    sleep_enable();
+    sleep_bod_disable();	// for additional power savings
+    sei();
+    sleep_cpu();
+    // now the CPU is sleeping.
+
+    // continuation after wakeup:
+    sleep_disable();
+    // activate Vcc for DFPlayer and NFC reader
+    digitalWrite(shutdownPin, LOW);
+    Serial.println(F("=== waking up again!"));
+    wakeUpMp3();
+    wakeUpNFC();
+    setstandbyTimer();
   }
 }
 
@@ -719,12 +770,34 @@ void waitForTrackToFinish() {
 #define TIMEOUT 1000
   do {
     mp3.loop();
-  } while (!isPlaying() && millis() < currentTime + TIMEOUT);
+  } while (!isPlaying() && (int)(millis() - currentTime) >= TIMEOUT);
   delay(1000);
   do {
     mp3.loop();
   } while (isPlaying());
 }
+
+void wakeUpMp3(void) {
+  // DFPlayer Mini initialisieren
+  mp3.begin();
+  // Zwei Sekunden warten bis der DFPlayer Mini initialisiert ist
+  delay(2000);
+  volume = mySettings.initVolume;
+  mp3.setVolume(volume);
+  mp3.setEq(mySettings.eq - 1);
+}
+
+void wakeUpNFC(void) {
+  // NFC Leser initialisieren
+  SPI.begin();        // Init SPI bus
+  mfrc522.PCD_Init(); // Init MFRC522
+}
+
+#ifdef buttonPower
+void onPowerButtonPressed(void) {
+  // an empty function as ISR is enough to wake up the CPU
+}
+#endif
 
 void setup() {
 
@@ -751,6 +824,10 @@ void setup() {
   // Busy Pin
   pinMode(busyPin, INPUT);
 
+  // activate Vcc for DFPlayer and NFC reader
+  pinMode(shutdownPin, OUTPUT);
+  digitalWrite(shutdownPin, LOW);
+
   // load Settings from EEPROM
   loadSettingsFromFlash();
 
@@ -758,20 +835,13 @@ void setup() {
   setstandbyTimer();
 
   // DFPlayer Mini initialisieren
-  mp3.begin();
-  // Zwei Sekunden warten bis der DFPlayer Mini initialisiert ist
-  delay(2000);
-  volume = mySettings.initVolume;
-  mp3.setVolume(volume);
-  mp3.setEq(mySettings.eq - 1);
+  wakeUpMp3();
   // Fix für das Problem mit dem Timeout (ist jetzt in Upstream daher nicht mehr nötig!)
   //mySoftwareSerial.setTimeout(10000);
 
   // NFC Leser initialisieren
-  SPI.begin();        // Init SPI bus
-  mfrc522.PCD_Init(); // Init MFRC522
-  mfrc522
-  .PCD_DumpVersionToSerial(); // Show details of PCD - MFRC522 Card Reader
+  wakeUpNFC();
+  mfrc522.PCD_DumpVersionToSerial(); // Show details of PCD - MFRC522 Card Reader
   for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
   }
@@ -783,9 +853,10 @@ void setup() {
   pinMode(buttonFourPin, INPUT_PULLUP);
   pinMode(buttonFivePin, INPUT_PULLUP);
 #endif
-  pinMode(shutdownPin, OUTPUT);
-  digitalWrite(shutdownPin, LOW);
-
+#ifdef buttonPower
+  pinMode(buttonPower, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(buttonPower), onPowerButtonPressed, FALLING);
+#endif
 
   // RESET --- ALLE DREI KNÖPFE BEIM STARTEN GEDRÜCKT HALTEN -> alle EINSTELLUNGEN werden gelöscht
   if (digitalRead(buttonPause) == LOW && digitalRead(buttonUp) == LOW &&
@@ -907,7 +978,7 @@ void playFolder() {
   }
   // Spezialmodus Von-Bin: Hörspiel: eine zufällige Datei aus dem Ordner
   if (myFolder->mode == 7) {
-    Serial.println(F("Spezialmodus Von-Bin: Hörspiel -> zufälligen Track wiedergeben"));
+    Serial.println(F("Spezialmodus Von-Bis: Hörspiel -> zufälligen Track wiedergeben"));
     Serial.print(myFolder->special);
     Serial.print(F(" bis "));
     Serial.println(myFolder->special2);
@@ -961,6 +1032,14 @@ void loop() {
     // Modifier : WIP!
     if (activeModifier != NULL) {
       activeModifier->loop();
+    }
+
+    if (Serial.available() > 0) {
+      switch (Serial.read()) {
+        case 'a':
+          adminMenu();
+          break;
+      }
     }
 
     // Buttons werden nun über JS_Button gehandelt, dadurch kann jede Taste
@@ -1539,7 +1618,9 @@ bool readCard(nfcTagObject * nfcTag) {
       (piccType == MFRC522::PICC_TYPE_MIFARE_1K ) ||
       (piccType == MFRC522::PICC_TYPE_MIFARE_4K ) )
   {
-    Serial.println(F("Authenticating Classic using key A..."));
+    Serial.print(F("Authenticating Classic using key: "));
+    //Print key used for authentification
+    dump_byte_array(key.keyByte, 6);
     status = mfrc522.PCD_Authenticate(
                MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
   }
