@@ -23,7 +23,7 @@
 static const uint32_t cardCookie = 322417479;
 
 // DFPlayer Mini
-SoftwareSerial mySoftwareSerial(2, 3); // RX, TX
+SoftwareSerial mySoftwareSerial(4, 3); // RX, TX
 uint16_t numTracksInFolder;
 uint16_t currentTrack;
 uint16_t firstTrack;
@@ -649,8 +649,8 @@ MFRC522::StatusCode status;
 #define buttonPause A0
 #define buttonUp A1
 #define buttonDown A2
-#define busyPin 4
-#define shutdownPin 7
+#define busyPin 5
+#define shutdownPin 8
 #define openAnalogPin A7
 
 #ifdef FIVEBUTTONS
