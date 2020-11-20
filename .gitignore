@@ -29,3 +29,13 @@ Temporary Items
 
 # TonUINO
 /tools/*.pyc
+
+# CLI build process using Arduino-Makefile
+build-*/
+*~
+
+# git specific files
+*.rej
+*.orig
+*.diff
+*.patch
