@@ -1432,7 +1432,22 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
   Serial.print(F("=== voiceMenu() ("));
   Serial.print(numberOfOptions);
   Serial.println(F(" Options)"));
+
+  // Vorgabe der AdmTimeOut Zeit in Millisekunden, die 5 ist die Zeit in Minuten:
+  unsigned long SollAdmTimeOut = 5*60000;
+  unsigned long AdmTimeOut = millis();
+
+  Serial.print(F("AdmTimeOut :"));
+  Serial.println(SollAdmTimeOut);
   do {
+    //Serial.println((millis() - AdmTimeOut));
+    if((long)(millis() - AdmTimeOut) >= SollAdmTimeOut) {
+      Serial.println(F("TimeOut"));
+      mp3.playMp3FolderTrack(802);                  //802- "OK, ich habe den Vorgang abgebrochen.
+      //ignorePauseButton = true;
+      setstandbyTimer();
+      return defaultValue;
+    }
     if (Serial.available() > 0) {
       int optionSerial = Serial.parseInt();
       if (optionSerial != 0 && optionSerial <= numberOfOptions)
@@ -1440,14 +1455,15 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
     }
     readButtons();
     mp3.loop();
-    if (pauseButton.pressedFor(LONG_PRESS)) {
-      mp3.playMp3FolderTrack(802);
+    if (pauseButton.pressedFor(LONG_PRESS)) { // Abbruch
+      mp3.playMp3FolderTrack(802);    //802- "OK, ich habe den Vorgang abgebrochen.
       ignorePauseButton = true;
-      checkStandbyAtMillis();
+      setstandbyTimer();
       return defaultValue;
     }
     if (pauseButton.wasReleased()) {
       if (returnValue != 0) {
+        AdmTimeOut = millis();
         Serial.print(F("=== "));
         Serial.print(returnValue);
         Serial.println(F(" ==="));
@@ -1457,23 +1473,27 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
     }
 
     if (upButton.pressedFor(LONG_PRESS)) {
-      returnValue = min(returnValue + 10, numberOfOptions);
+      AdmTimeOut = millis();
+      returnValue = min(returnValue + 10, numberOfOptions);  // 10 Schritte hoch
       Serial.println(returnValue);
-      //mp3.pause();
+      mp3.pause();
       mp3.playMp3FolderTrack(messageOffset + returnValue);
       waitForTrackToFinish();
-      /*if (preview) {
+
+      //************preview 10-er Schritt** vorwärts **************
+      if (preview) {
         if (previewFromFolder == 0)
           mp3.playFolderTrack(returnValue, 1);
         else
           mp3.playFolderTrack(previewFromFolder, returnValue);
-        }*/
+        }
       ignoreUpButton = true;
     } else if (upButton.wasReleased()) {
+      AdmTimeOut = millis();
       if (!ignoreUpButton) {
         returnValue = min(returnValue + 1, numberOfOptions);
         Serial.println(returnValue);
-        //mp3.pause();
+        mp3.pause();
         mp3.playMp3FolderTrack(messageOffset + returnValue);
         if (preview) {
           waitForTrackToFinish();
@@ -1490,23 +1510,28 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
     }
 
     if (downButton.pressedFor(LONG_PRESS)) {
-      returnValue = max(returnValue - 10, 1);
+      AdmTimeOut = millis();
+      returnValue = max(returnValue - 10, 1);             // 10 Schritte zurück
       Serial.println(returnValue);
-      //mp3.pause();
+      mp3.pause();
       mp3.playMp3FolderTrack(messageOffset + returnValue);
       waitForTrackToFinish();
-      /*if (preview) {
+      
+      //************preview 10-er Schritt* zurück ***************
+
+      if (preview) {
         if (previewFromFolder == 0)
           mp3.playFolderTrack(returnValue, 1);
         else
           mp3.playFolderTrack(previewFromFolder, returnValue);
-        }*/
+      }
       ignoreDownButton = true;
     } else if (downButton.wasReleased()) {
+      AdmTimeOut = millis();
       if (!ignoreDownButton) {
         returnValue = max(returnValue - 1, 1);
         Serial.println(returnValue);
-        //mp3.pause();
+        mp3.pause();
         mp3.playMp3FolderTrack(messageOffset + returnValue);
         if (preview) {
           waitForTrackToFinish();
