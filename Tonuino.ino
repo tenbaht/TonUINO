@@ -75,6 +75,14 @@ uint8_t voiceMenu(int numberOfOptions, int startMessage, int messageOffset,
                   bool preview = false, int previewFromFolder = 0, int defaultValue = 0, bool exitWithLongPress = false);
 bool isPlaying();
 bool checkTwo ( uint8_t a[], uint8_t b[] );
+bool askCode(uint8_t *code);
+void playFolder();
+void playShortCut(uint8_t shortCut);
+bool setupFolder(folderSettings * theFolder);
+void setstandbyTimer();
+void setupCard();
+void resetCard();
+bool readCard(nfcTagObject * nfcTag);
 void writeCard(nfcTagObject nfcTag);
 void dump_byte_array(byte * buffer, byte bufferSize);
 void adminMenu(bool fromCard = false);
