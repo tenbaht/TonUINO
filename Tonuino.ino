@@ -23,7 +23,10 @@
 static const uint32_t cardCookie = 322417479;
 
 // DFPlayer Mini
-SoftwareSerial mySoftwareSerial(4, 3); // RX, TX
+// rx and tx on the DFPlayer side (tx: CPU->mp3, rx: mp3->CPU)
+#define DFPlayerTXPin	4
+#define DFPlayerRXPin	3
+SoftwareSerial mySoftwareSerial(DFPlayerTXPin, DFPlayerRXPin); // RX, TX
 uint16_t numTracksInFolder;
 uint16_t currentTrack;
 uint16_t firstTrack;
@@ -737,10 +740,36 @@ void checkStandbyAtMillis() {
     mfrc522.PCD_AntennaOff();
     mfrc522.PCD_SoftPowerDown();
     mp3.sleep();
+    delay(500);
 
     // enter sleep state
-    delay(500);
-    digitalWrite(shutdownPin, HIGH);
+
+#ifdef shutdownPin
+    // 1. turn off power for mp3 and rfid module by setting the
+    // shutdownPin into Hi-Z mode (input, no pullup).
+    // The external pullup resistor to Vbat will make sure the transistors
+    // are really closed.
+//    digitalWrite(shutdownPin, HIGH);
+    pinMode(shutdownPin, INPUT);
+    delay(100);
+
+    // all pins connected to other modules (mp3, rfid, usb) have to be
+    // set into a passive state to avoid feeding feeding these modules
+    // via I/O pins.
+
+    // 2. pins to mp3 module (SoftwareSerial):
+    // put SoftwareSerial output pin to input mode to avoid feeding the
+    // mp3 module via the serial connection while in sleep mode
+uint8_t a = PCICR; PCICR=0;	//FIXME ganz brutal SoftwareSerial abklemmen
+    pinMode(DFPlayerRXPin, INPUT_PULLUP);
+    // set TX pin to low to avoid feeding the mp3 module
+    digitalWrite(DFPlayerTXPin, LOW);
+
+    // 3. USB connection (UART TX pin):
+    // deactivate the UART TX pin (it would power the CH340)
+    Serial.end();
+//    UCSR0B &= ~TXEN0;
+#endif
 
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     cli();  // Disable interrupts
@@ -752,11 +781,29 @@ void checkStandbyAtMillis() {
 
     // continuation after wakeup:
     sleep_disable();
+
+#ifdef shutdownPin
+    // activate the I/O lines for SoftwareSerial
+    digitalWrite(DFPlayerRXPin, HIGH);
+    pinMode(DFPlayerRXPin, OUTPUT);
+    digitalWrite(DFPlayerTXPin, HIGH);	// re-activate the pull-up
     // activate Vcc for DFPlayer and NFC reader
     digitalWrite(shutdownPin, LOW);
+    pinMode(shutdownPin, OUTPUT);
+#endif
+
+    Serial.begin(115200);
     Serial.println(F("=== waking up again!"));
-    wakeUpMp3();
+    delay(200);
+
+#ifdef shutdownPin
+    // re-activate the pin change interrupts for SoftwareSerial
+    PCIFR = 7;	// clear all pending pin change interrupt flags
+    PCICR = a;	// restore the former PCINT settings
+#endif
+
     wakeUpNFC();
+    wakeUpMp3();
     setstandbyTimer();
   }
 }
