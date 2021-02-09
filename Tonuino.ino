@@ -962,7 +962,7 @@ void playFolder() {
   // Einzel Modus: eine Datei aus dem Ordner abspielen
   if (myFolder->mode == 4) {
     Serial.println(
-      F("Einzel Modus -> eine Datei aus dem Odrdner abspielen"));
+      F("Einzel Modus -> eine Datei aus dem Ordner abspielen"));
     currentTrack = myFolder->special;
     mp3.playFolderTrack(myFolder->folder, currentTrack);
   }
